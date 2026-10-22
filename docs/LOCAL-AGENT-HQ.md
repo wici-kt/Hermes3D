@@ -31,8 +31,8 @@ browser 會將所有 subresource（同 WS）升級成 https 而同一個 port �
 |---|---|---|
 | `hermes3d-backend` | `hermes serve --host 127.0.0.1 --port 9120`，token 由 `~/.hermes/.env` 嘅 `HERMES3D_OFFICE_TOKEN` 讀 | `127.0.0.1:9120` |
 | `hermes3d-hostproxy` | 改寫 Host 嘅橋，俾 Studio 用 | `100.89.95.17:9121` |
-| `hermes3d-studio` | Hermes3D（production build） | `127.0.0.1:8790` |
-| `hermes3d-frontdoor` | 手機 / 其他 tailnet 裝置入口 | `100.89.95.17:8792` |
+| `hermes3d-studio` | Hermes3D（production build） | `127.0.0.1:8793` |
+| `hermes3d-frontdoor` | 手機 / LAN / tailnet 入口，**故意佔用 8790** | `0.0.0.0:8790` |
 
 開機自動起：已 `systemctl --user enable`。未做 `loginctl enable-linger kaden`
 嘅話，未登入時唔會起（同原本 dashboard 一樣嘅限制）。
@@ -49,7 +49,8 @@ cd ~/hermes3d && npm run build                     # 改咗前端之後要 rebui
 網址：
 
 - 本機：`http://127.0.0.1:8790/office`
-- 手機 / tailnet：`http://100.89.95.17:8792/office`
+- 手機 / tailnet：`http://100.89.95.17:8790/office`
+- LAN：`http://192.168.1.146:8790/office`
 - Task board：左上角 **KANBAN BOARD**（直接讀 `hermes` 嘅 cron / kanban / approvals）
 
 ## `.env`（`~/hermes3d/.env`，chmod 600，唔會 commit）
@@ -58,10 +59,24 @@ cd ~/hermes3d && npm run build                     # 改咗前端之後要 rebui
 HERMES3D_GATEWAY_ADAPTER_TYPE=hermes-agent
 HERMES3D_GATEWAY_URL=ws://100.89.95.17:9121     # 一定要非 loopback，否則 browser 直連冇 token
 HERMES3D_GATEWAY_TOKEN=<~/.hermes/.env 嘅 HERMES3D_OFFICE_TOKEN>
-PORT=8790
+PORT=8793                                       # studio 內部 port（frontdoor 由 8790 轉入）
 HOST=127.0.0.1
 UPSTREAM_ALLOWLIST=100.89.95.17                  # production 必需要，空 list 會 block 所有 upstream
 ```
+
+## 為何入口一定要用 8790（ufw）
+
+呢部機 ufw 開住（`ENABLED=yes`），而 Ubuntu 預設 ufw 會放行 ICMP，所以 **ping 通但 TCP timeout**
+係防火牆擋、唔係服務冇起。History 入面只開過呢兩個：
+
+```
+sudo ufw allow in on tailscale0 to any port 8790 proto tcp
+sudo ufw allow from 192.168.1.0/24 to any port 8790 proto tcp
+```
+
+所以入口綁 `0.0.0.0:8790`（studio 讓位去 8793）就唔使再開新 hole，
+`8792` 呢類新 port 由外面打會一直 timeout。要開新 port 先要：
+`sudo ufw allow in on tailscale0 to any port <port> proto tcp`。
 
 ## 踩過嘅坑
 
